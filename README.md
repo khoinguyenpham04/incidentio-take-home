@@ -1,175 +1,328 @@
-# Internships, placements and graduates
+# On-Call Schedule Renderer
 
-[job-ad]: https://incident.io/careers#open-roles
+A robust on-call scheduling system that generates rotating shift schedules and applies temporary overrides.
 
-We're on a mission to build the single place you turn to when things go wrong. Over the past year, we’ve also built some of the most ambitious AI-native features in our space. From ways to make incident response smoother, to AI agents that investigate, explain, and even fix issues, we’re reimagining what incident management can be.
+## Installation Instructions
 
-incident.io is now offering internships, placements, and graduate programmes for student engineers, 
-providing you the chance to be at the forefront of innovation through 3-month, 6-month, 1-year placements, or by joining as a full-time graduate.
+To run this project, you will require a working Python 3 installation (Python 3.7 or higher recommended).
 
-## What is the role?
+### Setup Instructions
 
-This application is for a Product Engineer role: [watch this
-video](https://youtu.be/I7i8WabFHcY) or check out
-[our blog](https://incident.io/blog/interns-at-incident-io) written by our last
-interns to see how it differs from other roles.
+#### 1. Verify Python Installation
 
-We're looking for candidates that:
+Ensure Python 3 is installed on your system:
 
-- Want to work in a fast-paced engineering team in one of London's fastest
-  growing start-ups.
-- Love the idea of working closely with customers to build a product used daily
-  to respond to critical incidents.
-- Are excited by the opportunity to build software used by some of the most
-  recognisable names in tech: OpenAI, Netflix, Lovable, Linear and more that we
-  can't share yet!
+```bash
+python3 --version
+```
 
-We're not looking candidates that:
+If Python is not installed, download it from [python.org](https://www.python.org/downloads/).
 
-- Are looking for an 'intern' project: this placement will have you doing
-  real work and we'll make little distinction between an intern and a fulltime
-  engineering hire.
-- Don't enjoy learning new technologies by 'doing': we expect engineers to
-  get involved building and learn as they go (most have learned Go while on the
-  job, as an example).
-- Prefer to work solo: we're highly collaborative and all your work will
-  happen as part of a team.
+#### 2. Set Up Virtual Environment (Optional)
 
-> Pro-tip: you can get a sense of engineering at incident.io by reading our
-> [engineering blog](https://incident.io/blog/engineering).
+While not required, it's recommended to use a virtual environment to isolate project dependencies:
 
-The full candidate process will be:
+**On Unix/macOS/Linux:**
 
-1. Apply with cover letter
-2. If accepted, we'll ask you to provide a solution to our take home test
-3. If successful, you'll be invited to an on-site interview — scheduled for November 11th or 13th for interns and placement students, or November 25th or 27th for graduates
+```bash
+# Create virtual environment
+python3 -m venv .venv
 
-## Complete our take-home challenge
+# Activate virtual environment
+source .venv/bin/activate
+```
 
-### Intro
+**On Windows (PowerShell):**
 
-Imagine you're working at incident.io and we're building a product that can page
-(call them, send an SMS, send a notification to a mobile app, etc) engineers
-when their services are involved in an incident.
+```powershell
+# Create virtual environment
+python -m venv .venv
 
-When configuring an on-call system, you don't want to say "whenever service X
-goes down, page Y person" as that person probably has a social life and won't
-appreciate receiving all the pages, all the time.
+# Activate virtual environment
+.\.venv\Scripts\Activate.ps1
+```
 
-Instead, you want to build schedules: a set of people who take it in turns to
-provide cover for a service by rotating through on-call shifts.
+**On Windows (Command Prompt):**
 
-In JSON form, the configuration that describes how a schedule behaves might look
-like this:
+```cmd
+# Create virtual environment
+python -m venv .venv
 
-```js
-// This is a schedule.
+# Activate virtual environment
+.venv\Scripts\activate.bat
+```
+
+#### 3. Install Dependencies
+
+There are **no external dependencies** required beyond Python's standard library.
+
+#### 4. Make Script Executable (Unix/macOS/Linux Only)
+
+On Unix-based systems, make the script executable:
+
+```bash
+chmod +x ./render-schedule
+```
+
+This allows you to run the script directly without explicitly invoking Python.
+
+## Usage
+
+### Running the Script
+
+**On Unix/macOS/Linux:**
+
+```bash
+./render-schedule \
+    --schedule=<path-to-schedule.json> \
+    --overrides=<path-to-overrides.json> \
+    --from='<ISO-8601-datetime>' \
+    --until='<ISO-8601-datetime>'
+```
+
+**On Windows (PowerShell):**
+
+```powershell
+python render-schedule `
+    --schedule=<path-to-schedule.json> `
+    --overrides=<path-to-overrides.json> `
+    --from='<ISO-8601-datetime>' `
+    --until='<ISO-8601-datetime>'
+```
+
+**On Windows (Command Prompt):**
+
+```cmd
+python render-schedule ^
+    --schedule=<path-to-schedule.json> ^
+    --overrides=<path-to-overrides.json> ^
+    --from=<ISO-8601-datetime> ^
+    --until=<ISO-8601-datetime>
+```
+
+### Example
+
+**On Unix/macOS/Linux:**
+
+```bash
+./render-schedule \
+    --schedule=schedule.json \
+    --overrides=overrides.json \
+    --from='2025-11-07T17:00:00Z' \
+    --until='2025-11-21T17:00:00Z'
+```
+
+**On Windows (PowerShell):**
+
+```powershell
+python render-schedule `
+    --schedule=schedule.json `
+    --overrides=overrides.json `
+    --from='2025-11-07T17:00:00Z' `
+    --until='2025-11-21T17:00:00Z'
+```
+
+**On Windows (Command Prompt):**
+
+```cmd
+python render-schedule ^
+    --schedule=schedule.json ^
+    --overrides=overrides.json ^
+    --from=2025-11-07T17:00:00Z ^
+    --until=2025-11-21T17:00:00Z
+```
+
+## Input File Formats
+
+### Schedule Configuration (`schedule.json`)
+
+Defines the rotating on-call schedule:
+
+```json
 {
-  "users": [
-    "alice",
-    "bob",
-    "charlie"
-  ],
-
-  // 5pm, Friday 7th November 2025
+  "users": ["alice", "bob", "charlie"],
   "handover_start_at": "2025-11-07T17:00:00Z",
   "handover_interval_days": 7
 }
 ```
 
-In that example, our schedule will rotate evenly between those users with the first shift starting at 5pm, 
-Friday 7th November 2025, with shift changes happening every 7 days.
+**Fields:**
+- `users` (array): List of usernames in rotation order (must have at least 1 user)
+- `handover_start_at` (string): ISO 8601 datetime when the first shift starts
+- `handover_interval_days` (number): Duration of each shift in days (must be positive)
 
-That means:
+### Overrides Configuration (`overrides.json`)
 
-- Alice takes the shift for 1 week, starting at 5pm, Friday 7th November 2025
-- Then Bob is on-call for 1 week from 5pm, Friday 14th November 2025
-- Then Charlie, then...
-- Back to Alice again.
+Defines temporary shift replacements:
 
-Visually, this might look like this:
-
-![Schedule](./schedule2025.png)
-
-Schedule systems often support 'overrides' where you can add temporary shift
-modifications to a schedule, such as if someone wants to go walk their dog or go
-to the cinema.
-
-An override specifies the person that will take the shift and the time period it covers.
-An example of Charlie covering 5pm–10pm on Monday 10th November 2025 would look like this:
-
-```js
-// This is an override.
-{
-  // Charlie will cover this shift
-  "user": "charlie",
-  // 5pm, Monday 10th November 2025
-  "start_at": "2025-11-10T17:00:00Z",
-  // 10pm, Monday 10th November 2025
-  "end_at": "2025-11-10T22:00:00Z"
-}
-```
-
-### Task
-
-We would like you to build – in any language you choose, but ideally one you are
-very comfortable in – a script called `./render-schedule` that implements a
-scheduling algorithm.
-
-It should be run like so:
-
-```console
-$ ./render-schedule \
-    --schedule=schedule.json \
-    --overrides=overrides.json \
-    --from='2025-11-07T17:00:00Z' \
-    --until='2025-11-21T17:00:00Z'
+```json
 [
   {
-    "user": "alice",
+    "user": "charlie",
     "start_at": "2025-11-10T17:00:00Z",
     "end_at": "2025-11-10T22:00:00Z"
-  },
-  {
-    "user": "bob",
-    "start_at": "2025-11-10T22:00:00Z",
-    "end_at": "2025-11-21T17:00:00Z"
   }
 ]
 ```
 
-Where:
+**Fields:**
+- `user` (string): Username of the person covering the override
+- `start_at` (string): ISO 8601 datetime when the override starts
+- `end_at` (string): ISO 8601 datetime when the override ends
 
-- `--schedule` JSON file containing a definition of a schedule (see above example)
-- `--overrides` JSON file containing an array of overrides (see above example)
-- `--from` the time from which to start listing entries
-- `--until` the time until which to listing entries
+**Note:** Can be an empty array `[]` if no overrides are needed.
 
-The script should output a JSON array of final schedule as a list of entries.
-This should take into account the projected entries (based on the handover
-information in the schedule) alongside the provided overrides.
+## Output Format
 
-Your schedule should also be truncated based on the from and until parameters provided. 
-For example, if an entry was from 1pm November 7 → 1pm November 9, 
-but from was 2pm November 8, the entry should be returned as 2pm November 8 → 1pm November 9 
-(ignoring the part of the entry that is outside the provided range).
+The script outputs a JSON array of schedule entries to stdout:
 
-Entries should be truncated to match the from/until parameters.
+```json
+[
+  {
+    "user": "alice",
+    "start_at": "2025-11-07T17:00:00Z",
+    "end_at": "2025-11-10T17:00:00Z"
+  },
+  {
+    "user": "charlie",
+    "start_at": "2025-11-10T17:00:00Z",
+    "end_at": "2025-11-10T22:00:00Z"
+  }
+]
+```
 
-### Code submission and video explanation
+**Characteristics:**
+- Entries are sorted chronologically by `start_at`
+- No gaps or overlaps between entries
+- Entries are truncated to fit within the `--from` and `--until` range
+- Times are in ISO 8601 format with 'Z' suffix (UTC)
 
-We'd like you to submit two things:
-1. Your code
-2. A 5-minute video walkthrough
+## Algorithm Overview
 
-Please submit a ZIP file containing the code and a `README.md` that includes 
-instructions on running your code, including installation of dependencies.
+### 1. Base Schedule Generation
+Calculates the rotating schedule using modulo arithmetic to determine which user is on-call for each time period.
 
-In the 'notes' field, include a link to a 5-minute video explaining:
-- How you approached solving the problem, and why you chose that approach
-- How your code implements that solution
-- Now you've built the scheduler, what other product features might you build
-  on top of this
+### 2. Override Application (Interval Splitting)
+When an override overlaps with a base shift, the algorithm splits the shift into pieces:
+- Part before override (if any) stays with original person
+- Override period goes to covering person
+- Part after override (if any) returns to original person
 
-(We recommend [Loom](https://www.loom.com) for recording this, but you're welcome 
-to use any other tool you're comfortable with).
+**Example:**
+```
+Base:     [Alice: 5pm Nov 7 → 5pm Nov 14]
+Override: [Charlie: 5pm Nov 10 → 10pm Nov 10]
+
+Result:
+  [Alice: 5pm Nov 7 → 5pm Nov 10]
+  [Charlie: 5pm Nov 10 → 10pm Nov 10]
+  [Alice: 10pm Nov 10 → 5pm Nov 14]
+```
+
+### 3. Truncation
+Entries are clipped to fit within the `--from` and `--until` bounds.
+
+### 4. Optimization
+Consecutive entries with the same user are merged for cleaner output.
+
+## Testing
+
+You can test the script with the provided example files to verify it's working correctly:
+
+**On Unix/macOS/Linux:**
+
+```bash
+./render-schedule \
+  --schedule=schedule.json \
+  --overrides=overrides.json \
+  --from='2025-11-07T17:00:00Z' \
+  --until='2025-11-21T17:00:00Z'
+```
+
+**On Windows:**
+
+```powershell
+python render-schedule `
+  --schedule=schedule.json `
+  --overrides=overrides.json `
+  --from='2025-11-07T17:00:00Z' `
+  --until='2025-11-21T17:00:00Z'
+```
+
+
+## Edge Cases Handled
+
+### Time Range Edge Cases
+- ✅ Query range before/after schedule starts
+- ✅ Very short query ranges (hours or minutes)
+- ✅ Truncation at entry boundaries
+
+### Override Edge Cases
+- ✅ Override completely covers a base shift
+- ✅ Override partially overlaps shift (start, middle, or end)
+- ✅ Multiple overrides in sequence
+- ✅ Overlapping overrides (later override takes precedence)
+- ✅ Empty overrides array
+
+### Schedule Configuration Edge Cases
+- ✅ Single user in rotation
+- ✅ Very short handover intervals
+- ✅ Very long handover intervals
+- ✅ Large number of users
+
+### Error Handling
+- ✅ Missing input files with clear error messages
+- ✅ Invalid JSON format
+- ✅ Missing required fields
+- ✅ Invalid datetime formats
+- ✅ Empty users array
+- ✅ Negative or zero handover intervals
+- ✅ Invalid time ranges
+
+## Code Structure
+
+```
+render-schedule (main script)
+├── ScheduleEntry class          # Data structure for schedule entries
+├── parse_arguments()            # CLI argument parser
+├── load_json_file()             # JSON file loader with error handling
+├── parse_datetime()             # ISO 8601 datetime parser
+├── validate_schedule()          # Schedule configuration validator
+├── validate_override()          # Override configuration validator
+├── generate_base_schedule()     # Base rotation schedule generator
+├── apply_overrides()            # Override application with interval splitting
+├── truncate_entries()           # Time boundary truncation
+├── merge_adjacent_entries()     # Adjacent entry optimization
+└── main()                       # Main orchestration logic
+```
+
+## Design Decisions
+
+### Algorithm: Interval Splitting
+- Handles all overlap scenarios correctly
+- Maintains chronological order
+- Easy to reason about and debug
+- Scalable to large numbers of overrides
+
+### Validation Strategy
+- Fail fast with clear error messages
+- Validate inputs before processing
+- Graceful degradation for recoverable issues
+
+## Performance
+
+**Time Complexity:**
+- Base schedule generation: O(n) where n = shifts in range
+- Override application: O(m × e) where m = overrides, e = entries
+- Total: O(n + m × e) - fast for practical use cases
+
+**Safety Limits:**
+- Maximum 10,000 generated schedule entries (prevents infinite loops)
+
+
+## Author
+
+Solution for incident.io take-home challenge by Tran Khoi Nguyen (Noah) Pham
+
+- LinkedIn: [linkedin.com/in/phamtrankhoinguyen-noah](https://www.linkedin.com/in/phamtrankhoinguyen-noah/)
+- Portfolio: [noahpham.me](https://noahpham.me)
