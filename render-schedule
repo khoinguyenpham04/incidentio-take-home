@@ -2,17 +2,16 @@
 """
 On-Call Schedule Renderer
 
-This script generates an on-call schedule based on a rotating schedule configuration
-and applies overrides to produce a final schedule within a specified time range.
+This script generates an on-call schedule based on a rotating schedule configuration and applies overrides to produce a final schedule within a specified time range.
 
-Author: incident.io take-home challenge
+Author: Tran Khoi Nguyen (Noah) Pham.
 """
 
 import argparse
 import json
 import sys
 from datetime import datetime, timedelta
-from typing import List, Dict, Optional, Any
+from typing import List, Dict, Any
 
 
 class ScheduleEntry:
@@ -43,13 +42,7 @@ class ScheduleEntry:
             "start_at": self.start_at.strftime("%Y-%m-%dT%H:%M:%SZ"),
             "end_at": self.end_at.strftime("%Y-%m-%dT%H:%M:%SZ")
         }
-    
-    def __repr__(self) -> str:
-        return f"ScheduleEntry({self.user}, {self.start_at}, {self.end_at})"
-    
-    def duration(self) -> timedelta:
-        """Return the duration of this entry."""
-        return self.end_at - self.start_at
+
 
 
 def parse_arguments() -> argparse.Namespace:
@@ -385,9 +378,9 @@ def truncate_entries(
         new_start = max(entry.start_at, from_dt)
         new_end = min(entry.end_at, until_dt)
         
-        # # Skip zero-duration entries
-        # if new_start >= new_end:
-        #     continue
+        # Skip zero-duration entries
+        if new_start >= new_end:
+            continue
         
         truncated.append(ScheduleEntry(
             user=entry.user,
