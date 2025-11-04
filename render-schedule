@@ -1,0 +1,496 @@
+#!/usr/bin/env python3
+"""
+On-Call Schedule Renderer
+
+This script generates an on-call schedule based on a rotating schedule configuration
+and applies overrides to produce a final schedule within a specified time range.
+
+Author: incident.io take-home challenge
+"""
+
+import argparse
+import json
+import sys
+from datetime import datetime, timedelta
+from typing import List, Dict, Optional, Any
+
+
+class ScheduleEntry:
+    """Represents a single schedule entry with a user and time range."""
+    
+    def __init__(self, user: str, start_at: datetime, end_at: datetime):
+        """
+        Initialize a schedule entry.
+        
+        Args:
+            user: The username of the person on-call
+            start_at: The start datetime of the shift
+            end_at: The end datetime of the shift
+        """
+        self.user = user
+        self.start_at = start_at
+        self.end_at = end_at
+    
+    def to_dict(self) -> Dict[str, str]:
+        """
+        Convert the entry to a dictionary for JSON serialization.
+        
+        Returns:
+            Dictionary with user, start_at, and end_at in ISO 8601 format
+        """
+        return {
+            "user": self.user,
+            "start_at": self.start_at.strftime("%Y-%m-%dT%H:%M:%SZ"),
+            "end_at": self.end_at.strftime("%Y-%m-%dT%H:%M:%SZ")
+        }
+    
+    def __repr__(self) -> str:
+        return f"ScheduleEntry({self.user}, {self.start_at}, {self.end_at})"
+    
+    def duration(self) -> timedelta:
+        """Return the duration of this entry."""
+        return self.end_at - self.start_at
+
+
+def parse_arguments() -> argparse.Namespace:
+    """
+    Parse command-line arguments.
+    
+    Returns:
+        Parsed arguments namespace
+    """
+    parser = argparse.ArgumentParser(
+        description="Render an on-call schedule with overrides"
+    )
+    parser.add_argument(
+        "--schedule",
+        required=True,
+        help="Path to JSON file containing schedule configuration"
+    )
+    parser.add_argument(
+        "--overrides",
+        required=True,
+        help="Path to JSON file containing overrides array"
+    )
+    parser.add_argument(
+        "--from",
+        dest="from_time",
+        required=True,
+        help="Start time for schedule rendering (ISO 8601 format)"
+    )
+    parser.add_argument(
+        "--until",
+        required=True,
+        help="End time for schedule rendering (ISO 8601 format)"
+    )
+    
+    return parser.parse_args()
+
+
+def load_json_file(filepath: str) -> Any:
+    """
+    Load and parse a JSON file.
+    
+    Args:
+        filepath: Path to the JSON file
+        
+    Returns:
+        Parsed JSON data
+        
+    Raises:
+        SystemExit: If file cannot be read or parsed
+    """
+    try:
+        with open(filepath, 'r') as f:
+            return json.load(f)
+    except FileNotFoundError:
+        print(f"Error: File not found: {filepath}", file=sys.stderr)
+        sys.exit(1)
+    except json.JSONDecodeError as e:
+        print(f"Error: Invalid JSON in {filepath}: {e}", file=sys.stderr)
+        sys.exit(1)
+    except Exception as e:
+        print(f"Error: Could not read {filepath}: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
+def parse_datetime(iso_string: str) -> datetime:
+    """
+    Parse an ISO 8601 datetime string to a datetime object.
+    
+    Args:
+        iso_string: ISO 8601 formatted datetime string
+        
+    Returns:
+        datetime object
+        
+    Raises:
+        ValueError: If the string is not a valid ISO 8601 datetime
+    """
+    # Support various ISO 8601 formats
+    formats = [
+        "%Y-%m-%dT%H:%M:%SZ",
+        "%Y-%m-%dT%H:%M:%S",
+        "%Y-%m-%dT%H:%M:%S.%fZ",
+        "%Y-%m-%dT%H:%M:%S.%f",
+    ]
+    
+    for fmt in formats:
+        try:
+            return datetime.strptime(iso_string, fmt)
+        except ValueError:
+            continue
+    
+    raise ValueError(f"Invalid ISO 8601 datetime format: {iso_string}")
+
+
+def validate_schedule(schedule: Dict[str, Any]) -> None:
+    """
+    Validate schedule configuration.
+    
+    Args:
+        schedule: Schedule configuration dictionary
+        
+    Raises:
+        ValueError: If schedule configuration is invalid
+    """
+    if not isinstance(schedule, dict):
+        raise ValueError("Schedule must be a JSON object")
+    
+    if "users" not in schedule:
+        raise ValueError("Schedule must contain 'users' field")
+    
+    if not isinstance(schedule["users"], list) or len(schedule["users"]) == 0:
+        raise ValueError("Schedule 'users' must be a non-empty array")
+    
+    if "handover_start_at" not in schedule:
+        raise ValueError("Schedule must contain 'handover_start_at' field")
+    
+    if "handover_interval_days" not in schedule:
+        raise ValueError("Schedule must contain 'handover_interval_days' field")
+    
+    if not isinstance(schedule["handover_interval_days"], (int, float)) or \
+       schedule["handover_interval_days"] <= 0:
+        raise ValueError("'handover_interval_days' must be a positive number")
+
+
+def validate_override(override: Dict[str, Any]) -> None:
+    """
+    Validate override configuration.
+    
+    Args:
+        override: Override configuration dictionary
+        
+    Raises:
+        ValueError: If override configuration is invalid
+    """
+    if not isinstance(override, dict):
+        raise ValueError("Override must be a JSON object")
+    
+    required_fields = ["user", "start_at", "end_at"]
+    for field in required_fields:
+        if field not in override:
+            raise ValueError(f"Override must contain '{field}' field")
+
+
+def generate_base_schedule(
+    schedule: Dict[str, Any],
+    from_dt: datetime,
+    until_dt: datetime
+) -> List[ScheduleEntry]:
+    """
+    Generate the base rotating schedule without overrides.
+    
+    Args:
+        schedule: Schedule configuration
+        from_dt: Start datetime for schedule generation
+        until_dt: End datetime for schedule generation
+        
+    Returns:
+        List of ScheduleEntry objects representing the base schedule
+    """
+    users = schedule["users"]
+    handover_start = parse_datetime(schedule["handover_start_at"])
+    handover_interval = timedelta(days=schedule["handover_interval_days"])
+    
+    entries = []
+    
+    # Calculate the first shift that might overlap with our query range
+    # We need to go back to find which rotation cycle we're in
+    if from_dt < handover_start:
+        # Query starts before the schedule begins
+        current_shift_start = handover_start
+        rotation_index = 0
+    else:
+        # Calculate how many complete rotations have passed
+        time_since_start = from_dt - handover_start
+        rotations_passed = int(time_since_start / handover_interval)
+        
+        # Go back one rotation to ensure we catch any overlapping shift
+        rotations_passed = max(0, rotations_passed - 1)
+        
+        current_shift_start = handover_start + (rotations_passed * handover_interval)
+        rotation_index = rotations_passed % len(users)
+    
+    # Generate shifts until we've covered the entire query range
+    while current_shift_start < until_dt:
+        current_shift_end = current_shift_start + handover_interval
+        
+        # Only add entries that overlap with our query range
+        if current_shift_end > from_dt:
+            entry = ScheduleEntry(
+                user=users[rotation_index],
+                start_at=current_shift_start,
+                end_at=current_shift_end
+            )
+            entries.append(entry)
+        
+        # Move to next shift
+        current_shift_start = current_shift_end
+        rotation_index = (rotation_index + 1) % len(users)
+        
+        # Safety check to prevent infinite loops
+        if len(entries) > 10000:
+            raise ValueError("Generated too many schedule entries. Check your parameters.")
+    
+    return entries
+
+
+def intervals_overlap(a_start: datetime, a_end: datetime, 
+                     b_start: datetime, b_end: datetime) -> bool:
+    """
+    Check if two time intervals overlap.
+    
+    Args:
+        a_start: Start of interval A
+        a_end: End of interval A
+        b_start: Start of interval B
+        b_end: End of interval B
+        
+    Returns:
+        True if intervals overlap, False otherwise
+    """
+    return a_start < b_end and b_start < a_end
+
+
+def apply_overrides(
+    base_entries: List[ScheduleEntry],
+    overrides: List[Dict[str, Any]]
+) -> List[ScheduleEntry]:
+    """
+    Apply overrides to base schedule entries using interval splitting.
+    
+    This algorithm handles overlapping intervals by:
+    1. For each override, find all base entries that overlap with it
+    2. Split overlapping base entries into non-overlapping pieces
+    3. Insert the override entry
+    4. Maintain chronological order
+    
+    Args:
+        base_entries: List of base schedule entries
+        overrides: List of override configurations
+        
+    Returns:
+        Final list of schedule entries with overrides applied
+    """
+    # Convert overrides to ScheduleEntry objects
+    override_entries = []
+    for override in overrides:
+        try:
+            entry = ScheduleEntry(
+                user=override["user"],
+                start_at=parse_datetime(override["start_at"]),
+                end_at=parse_datetime(override["end_at"])
+            )
+            
+            # Validate that start is before end
+            if entry.start_at >= entry.end_at:
+                print(f"Warning: Override has invalid time range (start >= end), skipping: {override}", 
+                      file=sys.stderr)
+                continue
+            
+            override_entries.append(entry)
+        except (ValueError, KeyError) as e:
+            print(f"Warning: Invalid override, skipping: {override} - {e}", file=sys.stderr)
+            continue
+    
+    # Start with base entries
+    result_entries = base_entries.copy()
+    
+    # Apply each override
+    for override in override_entries:
+        new_entries = []
+        
+        for entry in result_entries:
+            # Check if this entry overlaps with the override
+            if intervals_overlap(entry.start_at, entry.end_at, 
+                               override.start_at, override.end_at):
+                # Split the entry around the override
+                
+                # Part before override
+                if entry.start_at < override.start_at:
+                    new_entries.append(ScheduleEntry(
+                        user=entry.user,
+                        start_at=entry.start_at,
+                        end_at=min(entry.end_at, override.start_at)
+                    ))
+                
+                # Part after override
+                if entry.end_at > override.end_at:
+                    new_entries.append(ScheduleEntry(
+                        user=entry.user,
+                        start_at=max(entry.start_at, override.end_at),
+                        end_at=entry.end_at
+                    ))
+            else:
+                # No overlap, keep the entry as-is
+                new_entries.append(entry)
+        
+        # Add the override entry
+        new_entries.append(override)
+        
+        # Update result entries for next iteration
+        result_entries = new_entries
+    
+    # Sort by start time
+    result_entries.sort(key=lambda e: e.start_at)
+    
+    return result_entries
+
+
+def truncate_entries(
+    entries: List[ScheduleEntry],
+    from_dt: datetime,
+    until_dt: datetime
+) -> List[ScheduleEntry]:
+    """
+    Truncate schedule entries to fit within the specified time bounds.
+    
+    Args:
+        entries: List of schedule entries
+        from_dt: Start datetime bound
+        until_dt: End datetime bound
+        
+    Returns:
+        List of truncated entries that fall within the time bounds
+    """
+    truncated = []
+    
+    for entry in entries:
+        # Skip entries completely outside the range
+        if entry.end_at <= from_dt or entry.start_at >= until_dt:
+            continue
+        
+        # Truncate entry to fit within bounds
+        new_start = max(entry.start_at, from_dt)
+        new_end = min(entry.end_at, until_dt)
+        
+        # # Skip zero-duration entries
+        # if new_start >= new_end:
+        #     continue
+        
+        truncated.append(ScheduleEntry(
+            user=entry.user,
+            start_at=new_start,
+            end_at=new_end
+        ))
+    
+    return truncated
+
+
+def merge_adjacent_entries(entries: List[ScheduleEntry]) -> List[ScheduleEntry]:
+    """
+    Merge adjacent entries with the same user for optimization.
+    
+    Args:
+        entries: List of schedule entries (must be sorted by start_at)
+        
+    Returns:
+        List of merged entries
+    """
+    if not entries:
+        return []
+    
+    merged = [entries[0]]
+    
+    for entry in entries[1:]:
+        last = merged[-1]
+        
+        # If same user and times align, merge them
+        if last.user == entry.user and last.end_at == entry.start_at:
+            merged[-1] = ScheduleEntry(
+                user=last.user,
+                start_at=last.start_at,
+                end_at=entry.end_at
+            )
+        else:
+            merged.append(entry)
+    
+    return merged
+
+
+def main():
+    """Main entry point for the schedule renderer."""
+    try:
+        # Parse command-line arguments
+        args = parse_arguments()
+        
+        # Load input files
+        schedule = load_json_file(args.schedule)
+        overrides_data = load_json_file(args.overrides)
+        
+        # Validate inputs
+        validate_schedule(schedule)
+        
+        # Ensure overrides is an array
+        if not isinstance(overrides_data, list):
+            print("Error: Overrides file must contain a JSON array", file=sys.stderr)
+            sys.exit(1)
+        
+        # Validate each override
+        for override in overrides_data:
+            validate_override(override)
+        
+        # Parse time boundaries
+        try:
+            from_dt = parse_datetime(args.from_time)
+            until_dt = parse_datetime(args.until)
+        except ValueError as e:
+            print(f"Error: {e}", file=sys.stderr)
+            sys.exit(1)
+        
+        # Validate time range
+        if from_dt >= until_dt:
+            print("Error: 'from' time must be before 'until' time", file=sys.stderr)
+            sys.exit(1)
+        
+        # Generate base schedule
+        base_entries = generate_base_schedule(schedule, from_dt, until_dt)
+        
+        # Apply overrides
+        final_entries = apply_overrides(base_entries, overrides_data)
+        
+        # Truncate to time bounds
+        final_entries = truncate_entries(final_entries, from_dt, until_dt)
+        
+        # Merge adjacent entries with same user (optimization)
+        final_entries = merge_adjacent_entries(final_entries)
+        
+        # Convert to JSON and output
+        output = [entry.to_dict() for entry in final_entries]
+        print(json.dumps(output, indent=2))
+        
+    except ValueError as e:
+        print(f"Error: {e}", file=sys.stderr)
+        sys.exit(1)
+    except KeyboardInterrupt:
+        print("\nInterrupted by user", file=sys.stderr)
+        sys.exit(130)
+    except Exception as e:
+        print(f"Unexpected error: {e}", file=sys.stderr)
+        sys.exit(1)
+
+
+if __name__ == "__main__":
+    main()
+
