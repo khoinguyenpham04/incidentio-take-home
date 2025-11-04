@@ -1,0 +1,18 @@
+{
+  "users": [
+    "alice",
+    "bob",
+    "charlie",
+    "diana",
+    "eve",
+    "frank",
+    "grace",
+    "henry",
+    "iris",
+    "jack",
+    "kate",
+    "liam"
+  ],
+  "handover_start_at": "2025-11-01T09:00:00Z",
+  "handover_interval_days": 2
+}

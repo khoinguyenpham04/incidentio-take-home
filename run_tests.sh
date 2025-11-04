@@ -32,7 +32,7 @@ run_test "Basic Schedule with Override" \
 
 # Test 2: No overrides
 run_test "Schedule without Overrides" \
-    "./render-schedule --schedule=schedule.json --overrides=test_cases/test1_no_overrides.json --from='2025-11-07T17:00:00Z' --until='2025-11-21T17:00:00Z' | python3 -m json.tool > /dev/null"
+    "./render-schedule --schedule=test_cases/test1_no_overrides.json --overrides=test_cases/test1_no_overrides.json --from='2025-11-07T17:00:00Z' --until='2025-11-21T17:00:00Z' | python3 -m json.tool > /dev/null"
 
 # Test 3: Multiple overrides
 run_test "Multiple Non-Overlapping Overrides" \
@@ -54,19 +54,35 @@ run_test "Override Covering Full Shift" \
 run_test "Overlapping Overrides" \
     "./render-schedule --schedule=schedule.json --overrides=test_cases/test6_overlapping_overrides.json --from='2025-11-07T17:00:00Z' --until='2025-11-21T17:00:00Z' | python3 -m json.tool > /dev/null"
 
-# Test 8: Truncation at start
+# Test 8: Large team with short rotation intervals
+run_test "Large Team (12 people) with 2-Day Intervals" \
+    "./render-schedule --schedule=test_cases/test7_large_team_schedule.json --overrides=test_cases/test1_no_overrides.json --from='2025-11-01T09:00:00Z' --until='2025-11-30T09:00:00Z' | python3 -m json.tool > /dev/null"
+
+# Test 9: Cascading overlapping overrides (complex logic)
+run_test "Cascading Overlapping Overrides (5 nested overrides)" \
+    "./render-schedule --schedule=schedule.json --overrides=test_cases/test8_cascading_overrides.json --from='2025-11-10T00:00:00Z' --until='2025-11-12T00:00:00Z' | python3 -m json.tool > /dev/null"
+
+# Test 10: Swiss cheese pattern (many small overrides)
+run_test "Swiss Cheese Pattern (12 scattered overrides)" \
+    "./render-schedule --schedule=schedule.json --overrides=test_cases/test9_swiss_cheese_pattern.json --from='2025-11-07T17:00:00Z' --until='2025-11-21T17:00:00Z' | python3 -m json.tool > /dev/null"
+
+# Test 11: Boundary collisions and microsecond precision
+run_test "Boundary Collisions (sub-second timing)" \
+    "./render-schedule --schedule=schedule.json --overrides=test_cases/test10_boundary_collisions.json --from='2025-11-07T17:00:00Z' --until='2025-11-09T17:00:00Z' | python3 -m json.tool > /dev/null"
+
+# Test 12: Truncation at start
 run_test "Truncation (Query Starts Mid-Shift)" \
     "./render-schedule --schedule=schedule.json --overrides=overrides.json --from='2025-11-08T12:00:00Z' --until='2025-11-21T17:00:00Z' | python3 -m json.tool > /dev/null"
 
-# Test 9: Truncation at end
+# Test 13: Truncation at end
 run_test "Truncation (Query Ends Mid-Shift)" \
     "./render-schedule --schedule=schedule.json --overrides=overrides.json --from='2025-11-07T17:00:00Z' --until='2025-11-15T12:00:00Z' | python3 -m json.tool > /dev/null"
 
-# Test 10: Very short query range
+# Test 14: Very short query range
 run_test "Very Short Query Range (2 hours)" \
     "./render-schedule --schedule=schedule.json --overrides=overrides.json --from='2025-11-10T18:00:00Z' --until='2025-11-10T20:00:00Z' | python3 -m json.tool > /dev/null"
 
-# Test 11: Long query range
+# Test 15: Long query range
 run_test "Long Query Range (2 months)" \
     "./render-schedule --schedule=schedule.json --overrides=test_cases/test1_no_overrides.json --from='2025-11-07T17:00:00Z' --until='2025-12-31T17:00:00Z' | python3 -m json.tool > /dev/null"
 
